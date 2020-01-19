@@ -400,7 +400,10 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
     size_t off = 0;
     msgpack_sbuffer mp_sbuf;
     msgpack_packer mp_pck;
-
+    //jinxin added
+    char *datacenter;
+    char *cluster;
+    char *workspace;
     msgpack_unpacked api_result;
     msgpack_unpacked meta_result;
     msgpack_object k;
@@ -531,6 +534,8 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
     if ((!meta->container_hash || !meta->docker_id) && status_found) {
         extract_container_hash(meta, status_val);
     }
+    //jinxin add extra 3 fields
+    map_size += 3;
 
     /* Append Regex fields */
     msgpack_pack_map(&mp_pck, map_size);
@@ -546,6 +551,33 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
         msgpack_pack_str(&mp_pck, meta->namespace_len);
         msgpack_pack_str_body(&mp_pck, meta->namespace, meta->namespace_len);
     }
+
+    // jinxin add three field
+    datacenter = getenv("datacenter");
+	if (datacenter != NULL) {
+		int len = strlen(datacenter);
+        msgpack_pack_str(&mp_pck, 10);
+        msgpack_pack_str_body(&mp_pck, "datacenter", 10);
+        msgpack_pack_str(&mp_pck, len);
+        msgpack_pack_str_body(&mp_pck, datacenter, len);
+    }
+	cluster = getenv("cluster");
+    if (cluster != NULL) {
+        int len = strlen(cluster);
+        msgpack_pack_str(&mp_pck, 7);
+        msgpack_pack_str_body(&mp_pck, "cluster", 7);
+        msgpack_pack_str(&mp_pck, len);
+        msgpack_pack_str_body(&mp_pck, cluster, len);
+    }
+    workspace = getenv("workspace");
+    if (workspace != NULL) {
+        int len = strlen(workspace);
+        msgpack_pack_str(&mp_pck, 9);
+        msgpack_pack_str_body(&mp_pck, "workspace", 9);
+        msgpack_pack_str(&mp_pck, len);
+        msgpack_pack_str_body(&mp_pck, workspace, len);
+    }
+	//jinxin add end
 
     /* Append API Server content */
     if (have_uid >= 0) {
