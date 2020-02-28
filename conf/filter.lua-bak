@@ -1,0 +1,44 @@
+mytable = {}
+numbers = 0
+time = os.time()
+
+local function reportMA(pn, number)
+	return true
+end
+function do_filter(tag, timestamp, record)
+	-- generate redis key
+    record["datacenter"] = "dc1"
+    record["cluster"] = "cluster1"
+    record["workspace"] = "wp1"
+	
+	local datacenter = record["datacenter"]
+    local cluster = record["cluster"]
+    local workspace = record["workspace"]
+	local key = datacenter .. "-" ..  cluster .. "-" .. workspace
+	
+	--  get number
+	local redis = require 'redis'
+	local client = redis.connect('127.0.0.1', 6379)
+	local response = client:ping()           -- true
+	local value = client:get(key)
+	if value == nil then 
+		value = 0
+	else 
+ 		value = value + 1
+	end
+ 	-- update number
+	client:set(key, value)
+	numbers = numbers + 1
+	
+	if numbers >= oneloop then
+		-- report to MA
+		print("report to MA")
+		print("numbers:", numbers, "value:", value)
+		-- zore
+		local pn = "xxxxxx"
+		if reportMA(pn, )
+		numbers = 0
+	end
+	-- Record not modified so 'code' return value is 0 (first parameter)
+    return 0, 0, 0
+end

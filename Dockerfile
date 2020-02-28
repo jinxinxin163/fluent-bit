@@ -53,6 +53,11 @@ COPY conf/fluent-bit.conf \
      conf/plugins.conf \
      /fluent-bit/etc/
 
+# jinxin add for lua script
+COPY *.lua /fluent-bit/bin/
+COPY socket /fluent-bit/bin/socket
+COPY mime /fluent-bit/bin/mime
+
 FROM gcr.io/distroless/cc
 MAINTAINER Eduardo Silva <eduardo@treasure-data.com>
 LABEL Description="Fluent Bit docker image" Vendor="Fluent Organization" Version="1.1"
@@ -75,6 +80,6 @@ COPY --from=builder /fluent-bit /fluent-bit
 
 #
 EXPOSE 2020
-
+WORKDIR /fluent-bit/bin/
 # Entry point
-CMD ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
+CMD ["./fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
