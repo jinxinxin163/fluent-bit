@@ -1,16 +1,51 @@
+local cjson = require("json")
+local http = require("httputil")
 mytable = {}
-
-function test(tag, timestamp, record)
-	print("debug")
-	local http = require("httputil")
-    http.Get("http://www.httpbin.org/ip")
+exceedtable = {}
+ma_url = os.getenv("ma_url")
+function reportGatherMA(datacenter, cluster, workspace, value)
+	if ma_url == nil then 
+		ma_url = "http://api-logma-log.es.wise-paas.cn/v1/ma/"
+	end
+	local table1 = {}
+	table1["payload"] = tostring(value)
+	local json_body = cjson.encode(table1)
+    local url = ma_url .. "report/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
+	-- print("reportGatherMA, url: " .. url .. "; body: " .. json_body)
+	local res = http.Post(url, json_body)
+    if res == nil then
+        print("post error")
+		return false
+    else
+		-- print("error: " .. res["error"])
+		return true        
+    end
 end
-
-local function reportMA(pn, number, value)
-	return true
-end
-local function haveQuota(pn, number, value)
-	return true
+function haveGatherQuota(datacenter, cluster, workspace, value)
+	if ma_url == nil then
+        ma_url = "http://api-logma-log.es.wise-paas.cn/v1/ma/"
+	end
+    local config_url = ma_url .. "config/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
+	local res1 = http.Get(config_url)
+    if res1 == nil then
+        print("get gather config error")
+        return false
+    end
+	local config_number = tonumber(res1["content"])
+	
+	local usage_url = ma_url .. "usage/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
+	local res2 = http.Get(usage_url)
+    if res2 == nil then
+        print("get gather usage error")
+        return false
+    end
+	local usage_number = tonumber(res2["content"]) 
+	print("config_number: " .. config_number .. "; usage_number:" .. usage_number)
+	if usage_number < config_number then
+		return true
+	else 
+		return false	
+	end	
 end
 
 function do_filter(tag, timestamp, record)
@@ -23,33 +58,49 @@ function do_filter(tag, timestamp, record)
 	workspace = record["workspace"]
 	local key = datacenter .. "-" ..  cluster .. "-" .. workspace
 	local timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. workspace
-	
+	local drop = 0	
+	local initial = false
     -- init or update counter
-    if  mytable[key] == nil then
-        mytable[key] = 1
-		mytable[timekey] = os.time()
-    else
-        mytable[key] = mytable[key] + 1
-    end
+	if exceedtable[key] == nil or exceedtable[key] == 0 then  -- not exceed, will pass
+    	if  mytable[key] == nil then  -- first after start
+        	mytable[key] = 1
+			initial = true
+			mytable[timekey] = os.time()
+    	else
+        	mytable[key] = mytable[key] + 1
+    	end
+		drop  = 0
+	else  -- exceed, will drop
+      	mytable[key] = 0
+		drop = -1
+	end
 	
-	-- report to MA
 	local now = os.time()	
-	if now - mytable[timekey] >= 60 then
-		print("report to MA, key:", key, "value:", mytable[key])
-		local pn = "xxxxxx"
-		if reportMA(pn, key, mytable[key]) then
-			mytable[key] = nil
-			mytable[timekey] = nil
-			print("report MA success")
+	if initial == true or now - mytable[timekey] >= 60 then
+		-- report to MA
+		if mytable[key] <= 0 then
+			mytable[key] = 0
+            mytable[timekey] = os.time()
+			print("do not report zore")
 		else 
-			print("report MA fail")
+       		-- print("report to MA, key:" .. key .. "value:" .. mytable[key])
+       		if reportGatherMA(datacenter, cluster, workspace,  mytable[key]) then
+         		mytable[key] = 0
+      			mytable[timekey] = os.time()
+     			print("report MA success")
+      		else
+         		print("report MA fail")
+       		end
 		end
+
+		-- check gather quota, will effect next loop
+		if haveGatherQuota(datacenter, cluster, workspace) == false then
+			exceedtable[key] = 1
+		else 
+			exceedtable[key] = 0
+		end	
+		
 	end
-	if haveQuota(pn, key, mytable[key]) then
-		-- Record not modified so 'code' return value is 0 (first parameter)
-    	return 0, 0, 0
-	else
-		-- drop
-		return -1, 0, 0 
-	end
+
+	return drop, 0, 0
 end
