@@ -19,11 +19,11 @@ end
 
 function httputil.Get(url)
     r,c,h,body = httpGet(url)
-    local resp_table = cjson.decode(body)
     if c~= 200 then
         print("ErrorCode: " .. c)
         return nil
     else
+		local resp_table = cjson.decode(body)
         return resp_table
     end
 end

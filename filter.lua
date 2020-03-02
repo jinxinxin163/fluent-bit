@@ -70,9 +70,11 @@ function do_filter(tag, timestamp, record)
         	mytable[key] = mytable[key] + 1
     	end
 		drop  = 0
+		-- print("pass!!")
 	else  -- exceed, will drop
       	mytable[key] = 0
 		drop = -1
+		-- print("drop!!")
 	end
 	
 	local now = os.time()	
