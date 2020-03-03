@@ -7,6 +7,7 @@ function reportGatherMA(datacenter, cluster, workspace, value)
 	if ma_url == nil then 
 		ma_url = "http://api-logma-log.es.wise-paas.cn/v1/ma/"
 	end
+	print("ma_url:" .. ma_url)
 	local table1 = {}
 	table1["payload"] = tostring(value)
 	local json_body = cjson.encode(table1)
@@ -49,13 +50,10 @@ function haveGatherQuota(datacenter, cluster, workspace, value)
 end
 
 function do_filter(tag, timestamp, record)
-	-- generate key and timekey
-    record["datacenter"] = "dc1"
-    record["cluster"] = "cluster1"
-    record["workspace"] = "wp1"
-	datacenter = record["datacenter"]
-	cluster = record["cluster"]
-	workspace = record["workspace"]
+    -- generate key and timekey
+	datacenter = record['kubernetes']['datacenter']
+	cluster = record['kubernetes']['cluster']
+	workspace = record['kubernetes']['workspace']
 	local key = datacenter .. "-" ..  cluster .. "-" .. workspace
 	local timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. workspace
 	local drop = 0	
