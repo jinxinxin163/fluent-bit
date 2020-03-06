@@ -3,11 +3,12 @@ local http = require("httputil")
 mytable = {}
 exceedtable = {}
 ma_url = os.getenv("ma_url")
+report_interval_sec = os.getenv("report_interval_sec")
 function reportGatherMA(datacenter, cluster, workspace, value)
-	if ma_url == nil then 
-		ma_url = "http://api-logma-log.es.wise-paas.cn/v1/ma/"
+    if ma_url == nil then 
+		return false
 	end
-	print("ma_url:" .. ma_url)
+	print("reportGatherMA, ma_url:" .. ma_url)
 	local table1 = {}
 	table1["payload"] = tostring(value)
 	local json_body = cjson.encode(table1)
@@ -24,24 +25,33 @@ function reportGatherMA(datacenter, cluster, workspace, value)
 end
 function haveGatherQuota(datacenter, cluster, workspace, value)
 	if ma_url == nil then
-        ma_url = "http://api-logma-log.es.wise-paas.cn/v1/ma/"
+		return true
 	end
     local config_url = ma_url .. "config/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
 	local res1 = http.Get(config_url)
     if res1 == nil then
         print("get gather config error")
-        return false
+        return true
     end
+	if res1["status"] ~= 200 then 
+		print("get gather config error 2")
+        return true
+	end
 	local config_number = tonumber(res1["content"])
 	
 	local usage_url = ma_url .. "usage/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
 	local res2 = http.Get(usage_url)
     if res2 == nil then
         print("get gather usage error")
-        return false
+        return true
     end
+	if res2["status"] ~= 200 then
+        print("get gather usage error 2")
+        return true
+    end
+
 	local usage_number = tonumber(res2["content"]) 
-	print("config_number: " .. config_number .. "; usage_number:" .. usage_number)
+	print("haveGatherQuota, config_number: " .. config_number .. "; usage_number:" .. usage_number)
 	if usage_number < config_number then
 		return true
 	else 
@@ -50,14 +60,26 @@ function haveGatherQuota(datacenter, cluster, workspace, value)
 end
 
 function do_filter(tag, timestamp, record)
+	local drop = 0
+    local initial = false
+	if record['kubernetes'] == nil  then
+		 return drop, 0, 0
+	end
+	if record['kubernetes']['datacenter'] == nil  then
+         return drop, 0, 0
+    end
+
+	if report_interval_sec == nil then 
+		report_interval = 60
+	else
+		report_interval = tonumber(report_interval_sec)
+	end
     -- generate key and timekey
 	datacenter = record['kubernetes']['datacenter']
 	cluster = record['kubernetes']['cluster']
 	workspace = record['kubernetes']['workspace']
 	local key = datacenter .. "-" ..  cluster .. "-" .. workspace
 	local timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. workspace
-	local drop = 0	
-	local initial = false
     -- init or update counter
 	if exceedtable[key] == nil or exceedtable[key] == 0 then  -- not exceed, will pass
     	if  mytable[key] == nil then  -- first after start
@@ -76,7 +98,7 @@ function do_filter(tag, timestamp, record)
 	end
 	
 	local now = os.time()	
-	if initial == true or now - mytable[timekey] >= 60 then
+	if initial == true or now - mytable[timekey] >= report_interval then
 		-- report to MA
 		if mytable[key] <= 0 then
 			mytable[key] = 0

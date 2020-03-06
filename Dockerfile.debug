@@ -4,5 +4,4 @@ RUN chmod 555 /bin/busybox \
  && /bin/busybox --install
 
 FROM  registry.cn-shanghai.aliyuncs.com/advantech-k8s/fluent-bit:1.2.0
-ENV ma_url=http://192.168.10.136:8080/v1/ma/
 COPY --from=builder /bin/ /bin/

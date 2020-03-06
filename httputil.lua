@@ -19,6 +19,10 @@ end
 
 function httputil.Get(url)
     r,c,h,body = httpGet(url)
+	print("url:" .. url)
+	print("res:" .. r)
+	print("code:" .. c)
+	print("body:" .. body)
     if c~= 200 then
         print("ErrorCode: " .. c)
         return nil
