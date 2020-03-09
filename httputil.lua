@@ -19,12 +19,12 @@ end
 
 function httputil.Get(url)
     r,c,h,body = httpGet(url)
-	print("url:" .. url)
-	print("res:" .. r)
-	print("code:" .. c)
-	print("body:" .. body)
+	-- print("url:" .. url)
+	-- print("res:" .. r)
+	-- print("code:" .. c)
+	-- print("body:" .. body)
     if c~= 200 then
-        print("ErrorCode: " .. c)
+        print("Get error, code: " .. c .. "; url:" .. url)
         return nil
     else
 		local resp_table = cjson.decode(body)
@@ -51,7 +51,7 @@ function httputil.Post(myurl, body)
 	-- print("res: " .. res)
 	-- print("code: " .. code)
 	if code ~= 200 then 
-		print("ErrorCode: " .. code)
+		print("post error, code: " .. code .. "; url=" .. myurl)
 		return nil	
 	else
 		local str = table.concat(response_body)

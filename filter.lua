@@ -8,7 +8,6 @@ function reportGatherMA(datacenter, cluster, workspace, value)
     if ma_url == nil then 
 		return false
 	end
-	print("reportGatherMA, ma_url:" .. ma_url)
 	local table1 = {}
 	table1["payload"] = tostring(value)
 	local json_body = cjson.encode(table1)
@@ -16,7 +15,6 @@ function reportGatherMA(datacenter, cluster, workspace, value)
 	-- print("reportGatherMA, url: " .. url .. "; body: " .. json_body)
 	local res = http.Post(url, json_body)
     if res == nil then
-        print("post error")
 		return false
     else
 		-- print("error: " .. res["error"])
