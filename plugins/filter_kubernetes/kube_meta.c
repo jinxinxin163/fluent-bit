@@ -385,7 +385,7 @@ static void extract_container_hash(struct flb_kube_meta *meta,
 
 // jinxin added begin
 
-static void extract_envs_info(msgpack_object envs, char* datacenter, char* cluster, char* workspace){
+static void extract_envs_info(msgpack_object envs, char* datacenter, char* cluster, char* workspace, char* clustertype){
 	int i;
 	for(i = 0; i<envs.via.array.size; i++) {
 		int j;
@@ -432,12 +432,22 @@ static void extract_envs_info(msgpack_object envs, char* datacenter, char* clust
                 msgpack_object v1 = m.via.map.ptr[(j+1)%2].val;
                 strncpy(workspace, v1.via.str.ptr, v1.via.str.size);
 				//printf("workspace=%s\n", workspace);
-            } 
+            }
+
+			if (mysize == 2 && k.via.str.size == sizeof("name") -1 &&
+                        !strncmp(k.via.str.ptr, "name", k.via.str.size) &&
+                v.via.str.size == sizeof("clustertype") -1 &&
+                        !strncmp(v.via.str.ptr, "clustertype", v.via.str.size)) {
+                msgpack_object v1 = m.via.map.ptr[(j+1)%2].val;
+                strncpy(clustertype, v1.via.str.ptr, v1.via.str.size);
+                //printf("clustertype=%s\n", clustertype);
+            }
+ 
 		}		
 
 	}	
 }
-static void extract_containers_envs(msgpack_object containers, char* datacenter, char* cluster, char* workspace)
+static void extract_containers_envs(msgpack_object containers, char* datacenter, char* cluster, char* workspace, char* clustertype)
 {
 	int j;
 	msgpack_object v;
@@ -453,7 +463,7 @@ static void extract_containers_envs(msgpack_object containers, char* datacenter,
         	v2 = k1.via.map.ptr[l].val;
            	if (k2.via.str.size == sizeof("env") -1 &&
                         !strncmp(k2.via.str.ptr, "env", k2.via.str.size)) {
-           		extract_envs_info(v2, datacenter, cluster, workspace);
+           		extract_envs_info(v2, datacenter, cluster, workspace, clustertype);
 				return; 
 			}
         }
@@ -490,6 +500,7 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
     char datacenter[128] = {0};
     char cluster[128] = {0};
     char workspace[128] = {0} ;
+    char clustertype[128] = {0} ;
     msgpack_unpacked api_result;
     msgpack_unpacked meta_result;
     msgpack_object k;
@@ -617,7 +628,7 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
                 strncmp(k.via.str.ptr, "containers", 10) == 0) {
 				containers_val = spec_val.via.map.ptr[i].val; // get "containers" base obj
 				containers_found = FLB_TRUE;
-				map_size += 3;
+				map_size += 4;
 			}
         }
     }
@@ -645,9 +656,9 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
 
     // jinxin add three field
 	if(containers_found == FLB_TRUE ) {
-		 extract_containers_envs(containers_val, datacenter, cluster, workspace);		
+		 extract_containers_envs(containers_val, datacenter, cluster, workspace, clustertype);		
     }
-	//printf("%s, %s, %s\n", datacenter, cluster, workspace);
+	//printf("%s, %s, %s, %s\n", datacenter, cluster, workspace, clustertype);
 	if (1) {
 		int len = strlen(datacenter);
         msgpack_pack_str(&mp_pck, 10);
@@ -669,6 +680,14 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
         msgpack_pack_str(&mp_pck, len);
         msgpack_pack_str_body(&mp_pck, workspace, len);
     }
+     if (1) {
+        int len = strlen(clustertype);
+        msgpack_pack_str(&mp_pck, 11);
+        msgpack_pack_str_body(&mp_pck, "clustertype", 11);
+        msgpack_pack_str(&mp_pck, len);
+        msgpack_pack_str_body(&mp_pck, clustertype, len);
+    }
+
 	//jinxin add end
 
     /* Append API Server content */

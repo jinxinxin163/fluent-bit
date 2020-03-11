@@ -21,6 +21,24 @@ function reportGatherMA(datacenter, cluster, workspace, value)
 		return true        
     end
 end
+function reportGatherMA2(datacenter, cluster, value)
+    if ma_url == nil then
+        return false
+    end
+    local table1 = {}
+    table1["payload"] = tostring(value)
+    local json_body = cjson.encode(table1)
+    local url = ma_url .. "report/ga/dc/" .. datacenter .. "/cl/" .. cluster
+    -- print("reportGatherMA2, url: " .. url .. "; body: " .. json_body)
+    local res = http.Post(url, json_body)
+    if res == nil then
+        return false
+    else
+        -- print("error: " .. res["error"])
+        return true
+    end
+end
+
 function haveGatherQuota(datacenter, cluster, workspace, value)
 	if ma_url == nil then
 		return true
@@ -28,11 +46,11 @@ function haveGatherQuota(datacenter, cluster, workspace, value)
     local config_url = ma_url .. "config/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
 	local res1 = http.Get(config_url)
     if res1 == nil then
-        print("get gather config error")
+        print("get wksp gather config error")
         return true
     end
 	if res1["status"] ~= 200 then 
-		print("get gather config error 2")
+		print("get wksp gather config error 2")
         return true
 	end
 	local config_number = tonumber(res1["content"])
@@ -40,16 +58,53 @@ function haveGatherQuota(datacenter, cluster, workspace, value)
 	local usage_url = ma_url .. "usage/ga/dc/" .. datacenter .. "/cl/" .. cluster .. "/ws/" .. workspace
 	local res2 = http.Get(usage_url)
     if res2 == nil then
-        print("get gather usage error")
+        print("get wksp gather usage error")
         return true
     end
 	if res2["status"] ~= 200 then
-        print("get gather usage error 2")
+        print("get wksp gather usage error 2")
         return true
     end
 
 	local usage_number = tonumber(res2["content"]) 
 	print("haveGatherQuota, config_number: " .. config_number .. "; usage_number:" .. usage_number)
+	if usage_number < config_number then
+		return true
+	else 
+		return false	
+	end	
+end
+
+
+function haveGatherQuota2(datacenter, cluster, value)
+	if ma_url == nil then
+		return true
+	end
+    local config_url = ma_url .. "config/ga/dc/" .. datacenter .. "/cl/" .. cluster
+	local res1 = http.Get(config_url)
+    if res1 == nil then
+        print("get cluster gather config error")
+        return true
+    end
+	if res1["status"] ~= 200 then 
+		print("get cluster gather config error 2")
+        return true
+	end
+	local config_number = tonumber(res1["content"])
+	
+	local usage_url = ma_url .. "usage/ga/dc/" .. datacenter .. "/cl/" .. cluster
+	local res2 = http.Get(usage_url)
+    if res2 == nil then
+        print("get cluster gather usage error")
+        return true
+    end
+	if res2["status"] ~= 200 then
+        print("get cluster gather usage error 2")
+        return true
+    end
+
+	local usage_number = tonumber(res2["content"]) 
+	print("haveGatherQuota2, config_number: " .. config_number .. "; usage_number:" .. usage_number)
 	if usage_number < config_number then
 		return true
 	else 
@@ -76,9 +131,17 @@ function do_filter(tag, timestamp, record)
 	datacenter = record['kubernetes']['datacenter']
 	cluster = record['kubernetes']['cluster']
 	workspace = record['kubernetes']['workspace']
-	local key = datacenter .. "-" ..  cluster .. "-" .. workspace
-	local timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. workspace
-    -- init or update counter
+    clustertype = record['kubernetes']['clustertype']
+	local key
+	local timekey
+	if clustertype == "shared" then
+		key = datacenter .. "-" ..  cluster .. "-" .. workspace .. "-" .. clustertype
+		timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. workspace .. "-" .. clustertype
+    else
+		key = datacenter .. "-" ..  cluster .. "-" .. clustertype
+        timekey = "time-" .. datacenter .. "-" ..  cluster .. "-" .. clustertype
+	end
+	-- init or update counter
 	if exceedtable[key] == nil or exceedtable[key] == 0 then  -- not exceed, will pass
     	if  mytable[key] == nil then  -- first after start
         	mytable[key] = 1
@@ -104,21 +167,39 @@ function do_filter(tag, timestamp, record)
 			print("do not report zore")
 		else 
        		-- print("report to MA, key:" .. key .. "value:" .. mytable[key])
-       		if reportGatherMA(datacenter, cluster, workspace,  mytable[key]) then
-         		mytable[key] = 0
-      			mytable[timekey] = os.time()
-     			print("report MA success")
-      		else
-         		print("report MA fail")
-       		end
+       		if clustertype == "shared" then
+				if reportGatherMA(datacenter, cluster, workspace, mytable[key]) then
+         			mytable[key] = 0
+      				mytable[timekey] = os.time()
+     				print("report MA success")
+      			else
+         			print("report MA fail")
+       			end
+			else
+				if reportGatherMA2(datacenter, cluster, mytable[key]) then
+                    mytable[key] = 0
+                    mytable[timekey] = os.time()
+                    print("report MA success")
+                else
+                    print("report MA fail")
+                end
+			end
 		end
 
 		-- check gather quota, will effect next loop
-		if haveGatherQuota(datacenter, cluster, workspace) == false then
-			exceedtable[key] = 1
-		else 
-			exceedtable[key] = 0
-		end	
+		if clustertype == "shared" then
+			if haveGatherQuota(datacenter, cluster, workspace) == false then
+				exceedtable[key] = 1
+			else 
+				exceedtable[key] = 0
+			end	
+		else
+			if haveGatherQuota2(datacenter, cluster) == false then
+                exceedtable[key] = 1
+            else
+                exceedtable[key] = 0
+            end
+		end
 		
 	end
 
