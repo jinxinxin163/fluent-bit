@@ -205,3 +205,9 @@ function do_filter(tag, timestamp, record)
 
 	return drop, 0, 0
 end
+
+function do_drop(tag, timestamp, record)
+    if record['info'] == nil  then
+         return -1, 0, 0
+    end
+end
