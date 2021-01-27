@@ -681,6 +681,8 @@ static int merge_meta(struct flb_kube_meta *meta, struct flb_kube *ctx,
         msgpack_pack_str_body(&mp_pck, workspace, len);
     }
      if (1) {
+        char *p = getenv("clustertype");
+        strncpy(clustertype, p, strlen(p));
         int len = strlen(clustertype);
         msgpack_pack_str(&mp_pck, 11);
         msgpack_pack_str_body(&mp_pck, "clustertype", 11);
